@@ -1,0 +1,19 @@
+[project]
+name = "financial-statement-processor"
+version = "0.1.0"
+description = "A tool for processing financial statements"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pdfplumber",
+    "anthropic",
+    "python-dotenv",
+    "pandas",
+    "pydantic",
+    "pydantic-ai",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
