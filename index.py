@@ -20,9 +20,15 @@ import logging
 from datetime import datetime
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging(verbose=False):
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        force=True  # Override any existing configuration
+    )
+    return logging.getLogger(__name__)
+
 logger = logging.getLogger(__name__)
 
 
@@ -273,8 +279,8 @@ class PDFProcessor:
         combined_summary = "\n\n".join(pages_summary)
 
         prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์หน้าต่างๆ ต่อไปนี้และระบุว่าหน้าไหนเป็น:
-1. งบดุล (Balance Sheet) - มักมีคำว่า "สินทรัพย์", "หนี้สิน", "ส่วนของผู้ถือหุ้น"
-2. งบกำไรขาดทุน (Profit & Loss / Income Statement) - มักมีคำว่า "รายได้", "ต้นทุนขาย", "กำไร", "ขาดทุน"
+1. งบดุล (Balance Sheet) - มักมีคำว่า "งบฐานะการเงิน", "งบดุล", "สินทรัพย์", "หนี้สิน", "ส่วนของผู้ถือหุ้น"
+2. งบกำไรขาดทุน (Profit & Loss / Income Statement) - มักมีคำว่า "งบกำไรขาดทุน", "งบกำไรขาดทุน", "รายได้", "ต้นทุนขาย", "กำไร", "ขาดทุน"
 
 หน้าต่างๆ:
 {combined_summary}
@@ -640,9 +646,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set logging level
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    # Setup logging
+    logger = setup_logging(verbose=args.verbose)
+    logger.info("Starting financial statement processor...")
 
     # Check API key
     if not args.api_key:
