@@ -1,0 +1,79 @@
+{
+  "company_info": {
+    "name": "บริษัท อิ่มทรัพย์ โกลบอล คูซีน จำกัด",
+    "period_start": "2566-01-01",
+    "period_end": "2566-12-31",
+    "report_type": "งบการเงินประจำปี",
+    "currency": "THB"
+  },
+  "balance_sheet": {
+    "assets": {
+      "current_assets": {
+        "cash_and_equivalents": 13038145.0,
+        "short_term_investments": null,
+        "accounts_receivable": 3856590.0,
+        "inventory": 15401737.0,
+        "other_current_assets": 5159602.0,
+        "total": 37456074.0
+      },
+      "non_current_assets": {
+        "property_plant_equipment": 156574339.0,
+        "intangible_assets": 6979332.0,
+        "long_term_investments": 5111400.0,
+        "other_non_current_assets": 64767491.0,
+        "total": 232821162.0
+      },
+      "total_assets": 270277236.0
+    },
+    "liabilities": {
+      "current_liabilities": {
+        "accounts_payable": null,
+        "short_term_loans": null,
+        "other_current_liabilities": null,
+        "total": 152957630.0
+      },
+      "non_current_liabilities": {
+        "long_term_loans": null,
+        "other_non_current_liabilities": null,
+        "total": 0.0
+      },
+      "total_liabilities": 152957630.0
+    },
+    "equity": {
+      "share_capital": 41574400.0,
+      "retained_earnings": -94965551.0,
+      "other_equity": 170710757.0,
+      "total_equity": 117319606.0
+    }
+  },
+  "profit_and_loss": {
+    "revenue": 634380562.0,
+    "cost_of_goods_sold": 504027540.0,
+    "gross_profit": 130353022.0,
+    "operating_expenses": {
+      "selling_expenses": 102548585.0,
+      "administrative_expenses": 82595030.0,
+      "other_expenses": null,
+      "total": 185143615.0
+    },
+    "operating_profit": -47047858.0,
+    "other_income": 7742735.0,
+    "other_expenses": 2386791.0,
+    "profit_before_tax": -49434649.0,
+    "tax_expense": 0.0,
+    "net_profit": -49434649.0
+  },
+  "extracted_at": "2025-10-24T09:36:32.612379",
+  "metadata": {
+    "source_file": "FS_IMSUB GLOBAL_2565 - 2566.pdf",
+    "total_pages": 19,
+    "balance_sheet_pages": [
+      2,
+      3
+    ],
+    "profit_and_loss_pages": [
+      6
+    ],
+    "extraction_reasoning": "หน้า 1 เป็นหน้าปกแบบนำส่งงบการเงิน, หน้า 2-3 เป็นงบแสดงฐานะการเงิน (งบดุล) ณ วันที่ 31 ธันวาคม 2566 แสดงสินทรัพย์ หนี้สิน และส่วนของผู้ถือหุ้น, หน้า 4-5 เป็นงบแสดงการเปลี่ยนแปลงส่วนของผู้ถือหุ้น, หน้า 6 เป็นงบกำไรขาดทุน สำหรับปีสิ้นสุดวันที่ 31 ธันวาคม 2566 แสดงรายได้ ค่าใช้จ่าย และกำไร(ขาดทุน)สุทธิ"
+  }
+}

@@ -143,7 +143,7 @@ class OperatingExpenses(BaseModel):
     total: Optional[float] = Field(None, description="รวมค่าใช้จ่ายในการดำเนินงาน")
 
 
-class IncomeStatement(BaseModel):
+class ProfitAndLoss(BaseModel):
     """งบกำไรขาดทุน / Profit & Loss Statement"""
 
     revenue: Optional[float] = Field(None, description="รายได้จากการขาย")
@@ -173,7 +173,7 @@ class FinancialStatement(BaseModel):
 
     company_info: CompanyInfo
     balance_sheet: Optional[BalanceSheet] = None
-    income_statement: Optional[IncomeStatement] = None
+    profit_and_loss: Optional[ProfitAndLoss] = None
     extracted_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -207,7 +207,7 @@ TERM_MAPPING = """
 - ทุนจดทะเบียน, ทุน, Share capital, Capital = share_capital
 - กำไรสะสม, กำไร(ขาดทุน)สะสม, Retained earnings = retained_earnings
 
-## งบกำไรขาดทุน (Income Statement / Profit & Loss)
+## งบกำไรขาดทุน (Profit & Loss)
 
 ### รายได้และต้นทุน:
 - รายได้, รายได้จากการขาย, รายได้จากการขายและบริการ, ยอดขาย, Sales, Revenue = revenue
@@ -265,50 +265,80 @@ class PDFProcessor:
 
         return pages_data
 
-    def identify_financial_pages(
+    def extract_complete_financial_statement(
         self, pages_data: List[Dict], client: anthropic.Anthropic
-    ) -> Dict[str, List[int]]:
-        """ใช้ Claude หาหน้าที่เป็น Balance Sheet และ P&L"""
+    ) -> Dict[str, Any]:
+        """ใช้ Claude ในการ extract งบการเงินทั้งหมดในครั้งเดียว"""
 
         # สร้าง summary ของแต่ละหน้า
         pages_summary = []
         for page in pages_data[:20]:  # จำกัดแค่ 20 หน้าแรก
-            preview = page["text"][:500]  # เอาแค่ 500 ตัวอักษรแรก
+            preview = page["text"][:800]  # เพิ่มเป็น 800 ตัวอักษรเพื่อให้ข้อมูลครบถ้วน
             pages_summary.append(f"Page {page['page_number']}:\n{preview}\n{'='*50}")
 
         combined_summary = "\n\n".join(pages_summary)
 
-        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์หน้าต่างๆ ต่อไปนี้และระบุว่าหน้าไหนเป็น:
+        # สร้าง schema สำหรับผลลัพธ์ที่ต้องการ
+        balance_sheet_schema = BalanceSheet.schema_json(indent=2)
+        profit_and_loss_schema = ProfitAndLoss.schema_json(indent=2)
+        company_info_schema = CompanyInfo.schema_json(indent=2)
+
+        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์เอกสารงบการเงินต่อไปนี้และ extract ข้อมูลทั้งหมดในครั้งเดียว
 1. งบดุล (Balance Sheet) - มักมีคำว่า "งบฐานะการเงิน", "งบดุล", "สินทรัพย์", "หนี้สิน", "ส่วนของผู้ถือหุ้น"
-2. งบกำไรขาดทุน (Profit & Loss / Income Statement) - มักมีคำว่า "งบกำไรขาดทุน", "งบกำไรขาดทุน", "รายได้", "ต้นทุนขาย", "กำไร", "ขาดทุน"
+2. งบกำไรขาดทุน (Profit & Loss) - มักมีคำว่า "งบกำไรขาดทุน", "งบกำไรขาดทุน", "รายได้", "ต้นทุนขาย", "กำไร", "ขาดทุน"
 
 หน้าต่างๆ:
+
+
+เอกสารงบการเงิน:
 {combined_summary}
 
-กรุณาตอบเป็น JSON format:
+คำศัพท์ที่ใช้ในการ mapping:
+{TERM_MAPPING}
+
+กรุณาตอบเป็น JSON format ตามโครงสร้างนี้:
 {{
-    "balance_sheet_pages": [หมายเลขหน้า],
-    "income_statement_pages": [หมายเลขหน้า],
-    "reasoning": "อธิบายสั้นๆ"
+    "company_info": {company_info_schema},
+    "balance_sheet": {balance_sheet_schema},
+    "profit_and_loss": {profit_and_loss_schema},
+    "identified_pages": {{
+        "balance_sheet_pages": [หมายเลขหน้าที่เป็นงบดุล],
+        "profit_and_loss_pages": [หมายเลขหน้าที่เป็นงบกำไรขาดทุน]
+    }},
+    "reasoning": "อธิบายสั้นๆ ว่าหน้าไหนเป็นอะไร"
 }}
-"""
 
-        response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}],
-        )
+หลักการสำคัญ:
+1. จับคู่รายการที่มีความหมายเดียวกันแม้ชื่อเขียนต่างกัน (ใช้ TERM_MAPPING)
+2. แปลงตัวเลขทั้งหมดเป็น float (ถ้าเป็นหน่วยพัน ให้คูณ 1000, ถ้าเป็นหน่วยล้าน ให้คูณ 1,000,000)
+3. ถ้าไม่พบข้อมูลให้ใส่ null
+4. ตรวจสอบความสมดุลของงบดุล: total_assets = total_liabilities + total_equity
+5. ตรวจสอบกำไรขั้นต้น: gross_profit = revenue - cost_of_goods_sold
+6. ตอบเป็น JSON เท่านั้น ไม่ต้องอธิบาย
 
-        result_text = response.content[0].text
-        # Parse JSON from response
-        json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group())
-            logger.info(f"Identified pages: {result}")
-            return result
-        else:
-            logger.warning("Could not parse page identification result")
-            return {"balance_sheet_pages": [], "income_statement_pages": []}
+JSON:"""
+
+        try:
+            response = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=8000,  # เพิ่ม max_tokens เพื่อรองรับข้อมูลทั้งหมด
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            result_text = response.content[0].text
+            # Parse JSON from response
+            json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                logger.info(f"Successfully extracted complete financial statement")
+                return result
+            else:
+                logger.error("Could not find JSON in response")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error extracting complete financial statement: {e}")
+            return None
 
 
 # ============================================================================
@@ -317,142 +347,10 @@ class PDFProcessor:
 
 
 class FinancialExtractor:
-    """ใช้ Claude API ในการ extract และ classify ข้อมูล"""
+    """ใช้ Claude API ในการ extract และ classify ข้อมูล - ใช้ API call เดียว"""
 
     def __init__(self, api_key: str):
         self.client = anthropic.Anthropic(api_key=api_key)
-
-    def extract_balance_sheet(self, text: str) -> Optional[BalanceSheet]:
-        """Extract งบดุล"""
-
-        schema = BalanceSheet.schema_json(indent=2)
-
-        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์งบดุลต่อไปนี้และแปลงเป็น JSON
-
-ข้อความจากงบดุล:
-{text}
-
-คำศัพท์ที่ใช้ในการ mapping (ใช้จับคู่รายการที่มีความหมายเดียวกัน):
-{TERM_MAPPING}
-
-JSON Schema ที่ต้องการ:
-{schema}
-
-หลักการสำคัญ:
-1. จับคู่รายการที่มีความหมายเดียวกันแม้ชื่อเขียนต่างกัน (ใช้ TERM_MAPPING)
-2. แปลงตัวเลขทั้งหมดเป็น float (ถ้าเป็นหน่วยพัน ให้คูณ 1000, ถ้าเป็นหน่วยล้าน ให้คูณ 1,000,000)
-3. ถ้าไม่พบข้อมูลให้ใส่ null
-4. ตรวจสอบว่า total_assets = total_liabilities + total_equity
-5. ตอบเป็น JSON เท่านั้น ไม่ต้องอธิบาย
-
-JSON:"""
-
-        try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            result_text = response.content[0].text
-
-            # Parse JSON
-            json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                return BalanceSheet(**data)
-            else:
-                logger.error("Could not find JSON in response")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error extracting balance sheet: {e}")
-            return None
-
-    def extract_income_statement(self, text: str) -> Optional[IncomeStatement]:
-        """Extract งบกำไรขาดทุน"""
-
-        schema = IncomeStatement.schema_json(indent=2)
-
-        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์งบกำไรขาดทุนต่อไปนี้และแปลงเป็น JSON
-
-ข้อความจากงบกำไรขาดทุน:
-{text}
-
-คำศัพท์ที่ใช้ในการ mapping (ใช้จับคู่รายการที่มีความหมายเดียวกัน):
-{TERM_MAPPING}
-
-JSON Schema ที่ต้องการ:
-{schema}
-
-หลักการสำคัญ:
-1. จับคู่รายการที่มีความหมายเดียวกันแม้ชื่อเขียนต่างกัน (ใช้ TERM_MAPPING)
-2. แปลงตัวเลขทั้งหมดเป็น float (ถ้าเป็นหน่วยพัน ให้คูณ 1000, ถ้าเป็นหน่วยล้าน ให้คูณ 1,000,000)
-3. ถ้าไม่พบข้อมูลให้ใส่ null
-4. ตรวจสอบว่า gross_profit = revenue - cost_of_goods_sold
-5. ตอบเป็น JSON เท่านั้น ไม่ต้องอธิบาย
-
-JSON:"""
-
-        try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            result_text = response.content[0].text
-
-            # Parse JSON
-            json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                return IncomeStatement(**data)
-            else:
-                logger.error("Could not find JSON in response")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error extracting income statement: {e}")
-            return None
-
-    def extract_company_info(self, text: str) -> CompanyInfo:
-        """Extract ข้อมูลบริษัท"""
-
-        prompt = f"""จากข้อความต่อไปนี้ ให้หาข้อมูลบริษัท:
-
-{text[:2000]}
-
-ให้ตอบเป็น JSON:
-{{
-    "name": "ชื่อบริษัท",
-    "period_start": "วันที่เริ่มต้น (YYYY-MM-DD)",
-    "period_end": "วันที่สิ้นสุด (YYYY-MM-DD)",
-    "report_type": "ประเภทรายงาน",
-    "currency": "THB"
-}}
-
-ถ้าไม่พบให้ใส่ null"""
-
-        try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            result_text = response.content[0].text
-            json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
-
-            if json_match:
-                data = json.loads(json_match.group())
-                return CompanyInfo(**data)
-            else:
-                return CompanyInfo()
-
-        except Exception as e:
-            logger.error(f"Error extracting company info: {e}")
-            return CompanyInfo()
 
 
 # ============================================================================
@@ -500,14 +398,14 @@ class FinancialValidator:
         return issues
 
     @staticmethod
-    def validate_income_statement(inc: IncomeStatement) -> List[str]:
+    def validate_profit_and_loss(pl: ProfitAndLoss) -> List[str]:
         """ตรวจสอบงบกำไรขาดทุน"""
         issues = []
 
         # Check gross profit
-        revenue = inc.revenue or 0
-        cogs = inc.cost_of_goods_sold or 0
-        gross_profit = inc.gross_profit or 0
+        revenue = pl.revenue or 0
+        cogs = pl.cost_of_goods_sold or 0
+        gross_profit = pl.gross_profit or 0
 
         if abs(gross_profit - (revenue - cogs)) > 100:
             issues.append(
@@ -515,9 +413,9 @@ class FinancialValidator:
             )
 
         # Check operating profit
-        if inc.operating_profit and inc.operating_expenses.total:
-            expected_op = gross_profit - inc.operating_expenses.total
-            if abs(inc.operating_profit - expected_op) > 100:
+        if pl.operating_profit and pl.operating_expenses.total:
+            expected_op = gross_profit - pl.operating_expenses.total
+            if abs(pl.operating_profit - expected_op) > 100:
                 issues.append(f"กำไรจากการดำเนินงานไม่ตรง")
 
         return issues
@@ -531,7 +429,7 @@ class FinancialValidator:
 def process_financial_statement(
     pdf_path: str, anthropic_api_key: str, output_path: Optional[str] = None
 ) -> FinancialStatement:
-    """Main pipeline สำหรับประมวลผลงบการเงิน"""
+    """Main pipeline สำหรับประมวลผลงบการเงิน - ใช้ API call เดียว"""
 
     logger.info(f"Processing: {pdf_path}")
 
@@ -544,66 +442,76 @@ def process_financial_statement(
     logger.info("Step 1: Extracting PDF pages...")
     pages_data = pdf_processor.extract_all_pages()
 
-    # Step 2: Identify financial statement pages
-    logger.info("Step 2: Identifying Balance Sheet and P&L pages...")
-    identified_pages = pdf_processor.identify_financial_pages(
+    # Step 2: Extract complete financial statement in one API call
+    logger.info("Step 2: Extracting complete financial statement (single API call)...")
+    extraction_result = pdf_processor.extract_complete_financial_statement(
         pages_data, extractor.client
     )
 
-    bs_pages = identified_pages.get("balance_sheet_pages", [])
-    pl_pages = identified_pages.get("income_statement_pages", [])
-
-    # Step 3: Extract company info from first few pages
-    logger.info("Step 3: Extracting company information...")
-    first_pages_text = "\n\n".join([p["text"] for p in pages_data[:3]])
-    company_info = extractor.extract_company_info(first_pages_text)
-
-    # Step 4: Extract Balance Sheet
-    balance_sheet = None
-    if bs_pages:
-        logger.info(f"Step 4: Extracting Balance Sheet from pages {bs_pages}...")
-        bs_text = "\n\n".join(
-            [pages_data[p - 1]["text"] for p in bs_pages if p <= len(pages_data)]
+    if not extraction_result:
+        logger.error("Failed to extract financial statement")
+        return FinancialStatement(
+            company_info=CompanyInfo(),
+            metadata={"source_file": str(pdf_path), "total_pages": len(pages_data)}
         )
-        balance_sheet = extractor.extract_balance_sheet(bs_text)
 
-        if balance_sheet:
+    # Parse the results
+    company_info_data = extraction_result.get("company_info", {})
+    balance_sheet_data = extraction_result.get("balance_sheet", {})
+    profit_and_loss_data = extraction_result.get("profit_and_loss", {})
+    identified_pages = extraction_result.get("identified_pages", {})
+    reasoning = extraction_result.get("reasoning", "")
+
+    logger.info(f"Extraction reasoning: {reasoning}")
+
+    # Create Pydantic objects
+    try:
+        company_info = CompanyInfo(**company_info_data) if company_info_data else CompanyInfo()
+    except Exception as e:
+        logger.warning(f"Error parsing company info: {e}")
+        company_info = CompanyInfo()
+
+    balance_sheet = None
+    if balance_sheet_data:
+        try:
+            balance_sheet = BalanceSheet(**balance_sheet_data)
+            # Validate balance sheet
             issues = validator.validate_balance_sheet(balance_sheet)
             if issues:
                 logger.warning("Balance Sheet validation issues:")
                 for issue in issues:
                     logger.warning(f"  - {issue}")
+        except Exception as e:
+            logger.warning(f"Error parsing balance sheet: {e}")
 
-    # Step 5: Extract Income Statement
-    income_statement = None
-    if pl_pages:
-        logger.info(f"Step 5: Extracting Income Statement from pages {pl_pages}...")
-        pl_text = "\n\n".join(
-            [pages_data[p - 1]["text"] for p in pl_pages if p <= len(pages_data)]
-        )
-        income_statement = extractor.extract_income_statement(pl_text)
-
-        if income_statement:
-            issues = validator.validate_income_statement(income_statement)
+    profit_and_loss = None
+    if profit_and_loss_data:
+        try:
+            profit_and_loss = ProfitAndLoss(**profit_and_loss_data)
+            # Validate income statement
+            issues = validator.validate_profit_and_loss(profit_and_loss)
             if issues:
-                logger.warning("Income Statement validation issues:")
+                logger.warning("Profit and Loss validation issues:")
                 for issue in issues:
                     logger.warning(f"  - {issue}")
+        except Exception as e:
+            logger.warning(f"Error parsing profit and loss: {e}")
 
-    # Step 6: Create final result
+    # Step 3: Create final result
     result = FinancialStatement(
         company_info=company_info,
         balance_sheet=balance_sheet,
-        income_statement=income_statement,
+        profit_and_loss=profit_and_loss,
         metadata={
             "source_file": str(pdf_path),
             "total_pages": len(pages_data),
-            "balance_sheet_pages": bs_pages,
-            "income_statement_pages": pl_pages,
+            "balance_sheet_pages": identified_pages.get("balance_sheet_pages", []),
+            "profit_and_loss_pages": identified_pages.get("profit_and_loss_pages", []),
+            "extraction_reasoning": reasoning,
         },
     )
 
-    # Step 7: Save output
+    # Step 4: Save output
     if output_path:
         output_file = Path(output_path)
         with open(output_file, "w", encoding="utf-8") as f:
@@ -689,12 +597,12 @@ if __name__ == "__main__":
         else:
             print(f"\n✗ Balance Sheet not found")
 
-        if result.income_statement:
+        if result.profit_and_loss:
             print(f"\n✓ Income Statement extracted")
-            if result.income_statement.revenue:
-                print(f"  Revenue: {result.income_statement.revenue:,.2f}")
-            if result.income_statement.net_profit:
-                print(f"  Net Profit: {result.income_statement.net_profit:,.2f}")
+            if result.profit_and_loss.revenue:
+                print(f"  Revenue: {result.profit_and_loss.revenue:,.2f}")
+            if result.profit_and_loss.net_profit:
+                print(f"  Net Profit: {result.profit_and_loss.net_profit:,.2f}")
         else:
             print(f"\n✗ Income Statement not found")
 
