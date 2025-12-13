@@ -179,51 +179,69 @@ class FinancialStatement(BaseModel):
 
 
 # ============================================================================
-# STEP 2: TERM MAPPING DICTIONARY
+# STEP 2: FINANCIAL EXPERT SYSTEM ROLE
 # ============================================================================
 
-TERM_MAPPING = """
-## งบดุล (Balance Sheet)
+def get_financial_expert_system_message() -> str:
+    """สร้าง system message สำหรับ Financial Expert Agent"""
+    return """คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย (Thai Financial Statement Expert) ที่มีความรู้ลึกซึ้งเกี่ยวกับ:
+- งบการเงินตามมาตรฐานบัญชีไทย (Thai Accounting Standards)
+- รูปแบบงบการเงินของ DBD (กรมพัฒนาธุรกิจการค้า)
+- คำศัพท์ทางการเงินทั้งภาษาไทยและภาษาอังกฤษ
 
-### สินทรัพย์หมุนเวียน (Current Assets):
-- เงินสด, เงินสดและเงินฝากธนาคาร, Cash, Cash and bank = cash_and_equivalents
-- ลูกหนี้, ลูกหนี้การค้า, ลูกหนี้การค้าและลูกหนี้อื่น, Trade receivables, Accounts receivable = accounts_receivable
-- สินค้า, สินค้าคงเหลือ, สต็อก, Inventory, Stock = inventory
-- เงินลงทุนชั่วคราว, เงินลงทุนระยะสั้น, Short-term investments = short_term_investments
+## ความรู้พื้นฐานเกี่ยวกับงบการเงิน
 
-### สินทรัพย์ไม่หมุนเวียน (Non-Current Assets):
-- ที่ดิน อาคาร อุปกรณ์, ที่ดิน อาคารและอุปกรณ์, ทรัพย์สินถาวร, PPE, Property Plant Equipment, Fixed assets = property_plant_equipment
-- สินทรัพย์ไม่มีตัวตน, Intangible assets = intangible_assets
-- เงินลงทุนระยะยาว, Long-term investments = long_term_investments
+### งบดุล (Balance Sheet)
+งบดุลแสดงฐานะการเงินของบริษัท ณ วันใดวันหนึ่ง โดยต้องสมดุลตามสมการ: สินทรัพย์ = หนี้สิน + ส่วนของผู้ถือหุ้น
 
-### หนี้สินหมุนเวียน (Current Liabilities):
-- เจ้าหนี้, เจ้าหนี้การค้า, เจ้าหนี้การค้าและเจ้าหนี้อื่น, Trade payables, Accounts payable = accounts_payable
-- เงินกู้ยืมระยะสั้น, เงินเบิกเกินบัญชี, หนี้สินระยะสั้น, Short-term loans = short_term_loans
+**สินทรัพย์หมุนเวียน (Current Assets):**
+- เงินสดและรายการเทียบเท่าเงินสด: เงินสด, เงินสดและเงินฝากธนาคาร, Cash, Cash and bank, Cash equivalents
+- ลูกหนี้การค้า: ลูกหนี้, ลูกหนี้การค้า, ลูกหนี้การค้าและลูกหนี้อื่น, Trade receivables, Accounts receivable
+- สินค้าคงเหลือ: สินค้า, สินค้าคงเหลือ, สต็อก, Inventory, Stock
+- เงินลงทุนระยะสั้น: เงินลงทุนชั่วคราว, เงินลงทุนระยะสั้น, Short-term investments
 
-### หนี้สินไม่หมุนเวียน (Non-Current Liabilities):
-- เงินกู้ยืมระยะยาว, หนี้สินระยะยาว, Long-term loans, Long-term debt = long_term_loans
+**สินทรัพย์ไม่หมุนเวียน (Non-Current Assets):**
+- ที่ดิน อาคาร และอุปกรณ์: ที่ดิน อาคาร อุปกรณ์, ที่ดิน อาคารและอุปกรณ์, ทรัพย์สินถาวร, PPE, Property Plant Equipment, Fixed assets
+- สินทรัพย์ไม่มีตัวตน: Intangible assets
+- เงินลงทุนระยะยาว: Long-term investments
 
-### ส่วนของผู้ถือหุ้น (Equity):
-- ทุนจดทะเบียน, ทุน, Share capital, Capital = share_capital
-- กำไรสะสม, กำไร(ขาดทุน)สะสม, Retained earnings = retained_earnings
+**หนี้สินหมุนเวียน (Current Liabilities):**
+- เจ้าหนี้การค้า: เจ้าหนี้, เจ้าหนี้การค้า, เจ้าหนี้การค้าและเจ้าหนี้อื่น, Trade payables, Accounts payable
+- เงินกู้ยืมระยะสั้น: เงินกู้ยืมระยะสั้น, เงินเบิกเกินบัญชี, หนี้สินระยะสั้น, Short-term loans
 
-## งบกำไรขาดทุน (Profit & Loss)
+**หนี้สินไม่หมุนเวียน (Non-Current Liabilities):**
+- เงินกู้ยืมระยะยาว: เงินกู้ยืมระยะยาว, หนี้สินระยะยาว, Long-term loans, Long-term debt
 
-### รายได้และต้นทุน:
-- รายได้, รายได้จากการขาย, รายได้จากการขายและบริการ, ยอดขาย, Sales, Revenue = revenue
-- ต้นทุน, ต้นทุนขาย, ราคาทุนขาย, ต้นทุนของสินค้าที่ขาย, COGS, Cost of sales = cost_of_goods_sold
-- กำไรขั้นต้น, Gross profit, GP = gross_profit
+**ส่วนของผู้ถือหุ้น (Equity):**
+- ทุนจดทะเบียน: ทุนจดทะเบียน, ทุน, Share capital, Capital
+- กำไรสะสม: กำไรสะสม, กำไร(ขาดทุน)สะสม, Retained earnings
 
-### ค่าใช้จ่าย:
-- ค่าใช้จ่ายขาย, ค่าใช้จ่ายในการขาย, Selling expenses = selling_expenses
-- ค่าใช้จ่ายบริหาร, ค่าใช้จ่ายในการบริหาร, Administrative expenses, Admin expenses = administrative_expenses
-- กำไรจากการดำเนินงาน, กำไรจากการปฏิบัติงาน, Operating profit, EBIT = operating_profit
+### งบกำไรขาดทุน (Profit & Loss Statement)
+งบกำไรขาดทุนแสดงผลการดำเนินงานของบริษัทในช่วงเวลาหนึ่ง
 
-### กำไร:
-- กำไรก่อนภาษี, Profit before tax, PBT, EBT = profit_before_tax
-- ค่าใช้จ่ายภาษี, ภาษีเงินได้, Tax expense, Income tax = tax_expense
-- กำไรสุทธิ, กำไร(ขาดทุน)สุทธิ, Net profit, Net income = net_profit
-"""
+**รายได้และต้นทุน:**
+- รายได้จากการขาย: รายได้, รายได้จากการขาย, รายได้จากการขายและบริการ, ยอดขาย, Sales, Revenue
+- ต้นทุนขาย: ต้นทุน, ต้นทุนขาย, ราคาทุนขาย, ต้นทุนของสินค้าที่ขาย, COGS, Cost of sales
+- กำไรขั้นต้น: Gross profit = Revenue - Cost of goods sold
+
+**ค่าใช้จ่ายในการดำเนินงาน:**
+- ค่าใช้จ่ายในการขาย: ค่าใช้จ่ายขาย, ค่าใช้จ่ายในการขาย, Selling expenses
+- ค่าใช้จ่ายในการบริหาร: ค่าใช้จ่ายบริหาร, ค่าใช้จ่ายในการบริหาร, Administrative expenses, Admin expenses
+- กำไรจากการดำเนินงาน: กำไรจากการดำเนินงาน, กำไรจากการปฏิบัติงาน, Operating profit, EBIT = Gross profit - Operating expenses
+
+**กำไร:**
+- กำไรก่อนภาษี: กำไรก่อนภาษี, Profit before tax, PBT, EBT
+- ค่าใช้จ่ายภาษี: ค่าใช้จ่ายภาษี, ภาษีเงินได้, Tax expense, Income tax
+- กำไรสุทธิ: กำไรสุทธิ, กำไร(ขาดทุน)สุทธิ, Net profit, Net income = Profit before tax - Tax expense
+
+## หลักการสำคัญในการ Extract ข้อมูล
+
+1. **การจับคู่คำศัพท์**: คุณต้องรู้จักและจับคู่รายการที่มีความหมายเดียวกันแม้ชื่อเขียนต่างกัน (ทั้งภาษาไทยและอังกฤษ)
+2. **การแปลงหน่วย**: แปลงตัวเลขทั้งหมดเป็น float ในหน่วยเดียวกัน (ถ้าเป็นหน่วยพัน ให้คูณ 1000, ถ้าเป็นหน่วยล้าน ให้คูณ 1,000,000)
+3. **การตรวจสอบความสมดุล**: ตรวจสอบว่างบดุลสมดุล (total_assets = total_liabilities + total_equity) และกำไรขั้นต้นถูกต้อง (gross_profit = revenue - cost_of_goods_sold)
+4. **ความแม่นยำ**: ถ้าไม่พบข้อมูลให้ใส่ null แทนการเดา
+
+คุณมีความเชี่ยวชาญในการอ่านและเข้าใจงบการเงินไทยทุกรูปแบบ และสามารถ extract ข้อมูลได้อย่างถูกต้องแม่นยำ"""
 
 
 # ============================================================================
@@ -279,24 +297,24 @@ class PDFProcessor:
         combined_summary = "\n\n".join(pages_summary)
 
         # สร้าง schema สำหรับผลลัพธ์ที่ต้องการ
-        balance_sheet_schema = BalanceSheet.schema_json(indent=2)
-        profit_and_loss_schema = ProfitAndLoss.schema_json(indent=2)
-        company_info_schema = CompanyInfo.schema_json(indent=2)
+        balance_sheet_schema = BalanceSheet().model_json_schema(indent=2)
+        profit_and_loss_schema = ProfitAndLoss().model_json_schema(indent=2)
+        company_info_schema = CompanyInfo().model_json_schema(indent=2)
 
-        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านงบการเงินไทย วิเคราะห์เอกสารงบการเงินต่อไปนี้และ extract ข้อมูลทั้งหมดในครั้งเดียว
-1. งบดุล (Balance Sheet) - มักมีคำว่า "งบฐานะการเงิน", "งบดุล", "สินทรัพย์", "หนี้สิน", "ส่วนของผู้ถือหุ้น"
-2. งบกำไรขาดทุน (Profit & Loss) - มักมีคำว่า "งบกำไรขาดทุน", "งบกำไรขาดทุน", "รายได้", "ต้นทุนขาย", "กำไร", "ขาดทุน"
+        # System message - กำหนด role และความรู้พื้นฐาน
+        system_message = get_financial_expert_system_message()
 
-หน้าต่างๆ:
+        # User prompt - สั้นและโฟกัสที่ข้อมูลเฉพาะเจาะจง
+        user_prompt = f"""วิเคราะห์เอกสารงบการเงินต่อไปนี้และ extract ข้อมูลทั้งหมด:
 
-
-เอกสารงบการเงิน:
 {combined_summary}
 
-คำศัพท์ที่ใช้ในการ mapping:
-{TERM_MAPPING}
+กรุณา extract ข้อมูลต่อไปนี้:
+1. **ข้อมูลบริษัท**: ชื่อบริษัท, วันที่เริ่มต้น/สิ้นสุดรอบบัญชี, ประเภทรายงาน
+2. **งบดุล (Balance Sheet)**: ระบุหมายเลขหน้าที่เป็นงบดุล
+3. **งบกำไรขาดทุน (Profit & Loss)**: ระบุหมายเลขหน้าที่เป็นงบกำไรขาดทุน
 
-กรุณาตอบเป็น JSON format ตามโครงสร้างนี้:
+ตอบเป็น JSON format ตามโครงสร้างนี้:
 {{
     "company_info": {company_info_schema},
     "balance_sheet": {balance_sheet_schema},
@@ -308,13 +326,11 @@ class PDFProcessor:
     "reasoning": "อธิบายสั้นๆ ว่าหน้าไหนเป็นอะไร"
 }}
 
-หลักการสำคัญ:
-1. จับคู่รายการที่มีความหมายเดียวกันแม้ชื่อเขียนต่างกัน (ใช้ TERM_MAPPING)
-2. แปลงตัวเลขทั้งหมดเป็น float (ถ้าเป็นหน่วยพัน ให้คูณ 1000, ถ้าเป็นหน่วยล้าน ให้คูณ 1,000,000)
-3. ถ้าไม่พบข้อมูลให้ใส่ null
-4. ตรวจสอบความสมดุลของงบดุล: total_assets = total_liabilities + total_equity
-5. ตรวจสอบกำไรขั้นต้น: gross_profit = revenue - cost_of_goods_sold
-6. ตอบเป็น JSON เท่านั้น ไม่ต้องอธิบาย
+**คำแนะนำ:**
+- ใช้ความรู้ด้านงบการเงินของคุณในการจับคู่รายการต่างๆ
+- แปลงตัวเลขเป็น float (ปรับหน่วยให้เป็นหน่วยเดียวกัน)
+- ตรวจสอบความสมดุลของงบดุลและความถูกต้องของกำไรขั้นต้น
+- ตอบเป็น JSON เท่านั้น ไม่ต้องอธิบายเพิ่มเติม
 
 JSON:"""
 
@@ -322,7 +338,8 @@ JSON:"""
             response = client.messages.create(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=8000,  # เพิ่ม max_tokens เพื่อรองรับข้อมูลทั้งหมด
-                messages=[{"role": "user", "content": prompt}],
+                system=system_message,
+                messages=[{"role": "user", "content": user_prompt}],
             )
 
             result_text = response.content[0].text
